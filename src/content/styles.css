@@ -1,15 +1,42 @@
-/* Side panel styles */
 .cvo-panel {
   position: fixed;
-  right: 0;
-  top: 0;
-  width: 400px;
-  height: 100vh;
-  z-index: 9999;
-  background: #1a1a1a;
+  right: 16px;
+  top: 90px;
+  width: 320px;
+  z-index: 99999;
+  background: rgba(20, 20, 20, 0.96);
   color: #fff;
   font-family: system-ui, sans-serif;
   display: flex;
   flex-direction: column;
-  border-left: 2px solid #333;
+  gap: 8px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.cvo-panel__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.cvo-panel__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.cvo-panel__label {
+  color: #b5b5b5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+#cvo-fen-value {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 11px;
+  color: #d0ffd0;
 }
