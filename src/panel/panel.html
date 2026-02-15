@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chess Vision Overlay</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <div id="app">
+    <div id="board-container">
+      <div id="board"></div>
+    </div>
+    <div id="eval-bar">
+      <div id="eval-fill"></div>
+      <span id="eval-score"></span>
+    </div>
+    <div id="engine-lines"></div>
+    <div id="move-history"></div>
+    <div id="controls">
+      <button id="sync-toggle">⏸ Pause Sync</button>
+      <button id="flip-board">🔄 Flip</button>
+    </div>
+  </div>
+  <div id="new-game-prompt" class="hidden">
+    <p>🆕 New game detected!</p>
+    <button id="accept-new-game">Start tracking</button>
+    <button id="dismiss-new-game">Dismiss</button>
+  </div>
+  <script type="module" src="panel.ts"></script>
+</body>
+</html>

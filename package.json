@@ -1,0 +1,24 @@
+{
+  "name": "chess-vision-overlay",
+  "version": "0.1.0",
+  "description": "Chrome extension - detect chess positions from YouTube videos with computer vision + Stockfish eval",
+  "private": true,
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc && vite build",
+    "test": "vitest run",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.280",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0",
+    "@crxjs/vite-plugin": "^2.0.0-beta.30"
+  },
+  "dependencies": {
+    "chess.js": "^1.0.0-beta.8",
+    "onnxruntime-web": "^1.20.0",
+    "stockfish": "^16.0.0"
+  }
+}
