@@ -6,26 +6,48 @@
   <link rel="stylesheet" href="panel.css">
 </head>
 <body>
-  <div id="app">
-    <div id="board-container">
-      <div id="board"></div>
-    </div>
-    <div id="eval-bar">
-      <div id="eval-fill"></div>
-      <span id="eval-score"></span>
-    </div>
-    <div id="engine-lines"></div>
-    <div id="move-history"></div>
-    <div id="controls">
-      <button id="sync-toggle">⏸ Pause Sync</button>
-      <button id="flip-board">🔄 Flip</button>
-    </div>
-  </div>
+  <main id="app">
+    <section id="top-row">
+      <div id="board-shell">
+        <div id="board"></div>
+      </div>
+      <aside id="eval-column">
+        <div id="eval-bar" aria-label="Evaluation bar">
+          <div id="eval-black"></div>
+          <div id="eval-white"></div>
+          <div id="eval-marker"></div>
+        </div>
+        <div id="eval-score">0.0</div>
+      </aside>
+    </section>
+
+    <section id="engine-panel">
+      <div class="section-title">Engine Lines</div>
+      <div id="engine-lines">Waiting for vision updates...</div>
+    </section>
+
+    <section id="history-panel">
+      <div class="section-title">Move History</div>
+      <div id="move-history"></div>
+    </section>
+
+    <section id="controls">
+      <button id="sync-toggle">Pause Sync</button>
+      <button id="auto-toggle">Auto-Advance: On</button>
+      <button id="next-update">Apply Latest</button>
+      <button id="flip-board">Flip</button>
+      <button id="clear-notes">Clear Notes</button>
+    </section>
+  </main>
+
   <div id="new-game-prompt" class="hidden">
-    <p>🆕 New game detected!</p>
-    <button id="accept-new-game">Start tracking</button>
-    <button id="dismiss-new-game">Dismiss</button>
+    <p>New game detected. Start fresh tracking?</p>
+    <div class="prompt-actions">
+      <button id="accept-new-game">Start Tracking</button>
+      <button id="dismiss-new-game">Dismiss</button>
+    </div>
   </div>
+
   <script type="module" src="panel.ts"></script>
 </body>
 </html>
