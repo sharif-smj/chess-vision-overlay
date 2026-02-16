@@ -6,12 +6,14 @@ export interface BoardDetectorOptions {
   minCoverage: number;
   maxInputDimension: number;
   edgePercentile: number;
+  occlusionPaddingRatio: number;
 }
 
 const DEFAULT_OPTIONS: BoardDetectorOptions = {
   minCoverage: 0.06,
   maxInputDimension: 360,
   edgePercentile: 0.88,
+  occlusionPaddingRatio: 0.07,
 };
 
 // Heuristic board detector for MVP.
@@ -36,22 +38,24 @@ export class BoardDetector {
     const luminance = this.downsampleLuminance(imageData, sw, sh);
     const edges = this.computeEdgeStrength(luminance, sw, sh);
     const threshold = this.percentileThreshold(edges, this.options.edgePercentile);
-    const mask = this.binarize(edges, threshold);
+    const mask = this.closeMask(this.binarize(edges, threshold), sw, sh);
 
     const candidate = this.findBestSquareComponent(mask, sw, sh);
     if (!candidate) {
       return null;
     }
 
-    if (candidate.coverage < this.options.minCoverage) {
+    const adjusted = this.expandForCornerOcclusion(candidate, sw, sh);
+
+    if (adjusted.coverage < this.options.minCoverage) {
       return null;
     }
 
     return {
-      x: Math.floor(candidate.x / scale),
-      y: Math.floor(candidate.y / scale),
-      width: Math.floor(candidate.width / scale),
-      height: Math.floor(candidate.height / scale),
+      x: Math.floor(adjusted.x / scale),
+      y: Math.floor(adjusted.y / scale),
+      width: Math.floor(adjusted.width / scale),
+      height: Math.floor(adjusted.height / scale),
     };
   }
 
@@ -104,6 +108,61 @@ export class BoardDetector {
       mask[i] = edges[i] >= threshold ? 1 : 0;
     }
     return mask;
+  }
+
+  private closeMask(mask: Uint8Array, width: number, height: number): Uint8Array {
+    const dilated = new Uint8Array(mask.length);
+    const eroded = new Uint8Array(mask.length);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x;
+        if (mask[idx] === 1) {
+          dilated[idx] = 1;
+          if (x > 0) dilated[idx - 1] = 1;
+          if (x + 1 < width) dilated[idx + 1] = 1;
+          if (y > 0) dilated[idx - width] = 1;
+          if (y + 1 < height) dilated[idx + width] = 1;
+        }
+      }
+    }
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = y * width + x;
+        const left = x > 0 ? dilated[idx - 1] : 0;
+        const right = x + 1 < width ? dilated[idx + 1] : 0;
+        const up = y > 0 ? dilated[idx - width] : 0;
+        const down = y + 1 < height ? dilated[idx + width] : 0;
+        eroded[idx] = dilated[idx] === 1 && left === 1 && right === 1 && up === 1 && down === 1 ? 1 : 0;
+      }
+    }
+
+    return eroded;
+  }
+
+  private expandForCornerOcclusion(
+    candidate: { x: number; y: number; width: number; height: number; coverage: number },
+    width: number,
+    height: number,
+  ): { x: number; y: number; width: number; height: number; coverage: number } {
+    const side = Math.round(Math.max(candidate.width, candidate.height));
+    const pad = Math.round(side * this.options.occlusionPaddingRatio);
+    const paddedSide = Math.min(Math.max(candidate.width, candidate.height) + pad * 2, Math.min(width, height));
+    const centerX = candidate.x + candidate.width / 2;
+    const centerY = candidate.y + candidate.height / 2;
+
+    const x = Math.max(0, Math.min(width - paddedSide, Math.round(centerX - paddedSide / 2)));
+    const y = Math.max(0, Math.min(height - paddedSide, Math.round(centerY - paddedSide / 2)));
+    const area = paddedSide * paddedSide;
+
+    return {
+      x,
+      y,
+      width: paddedSide,
+      height: paddedSide,
+      coverage: area / (width * height),
+    };
   }
 
   private findBestSquareComponent(mask: Uint8Array, width: number, height: number):

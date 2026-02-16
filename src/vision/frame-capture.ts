@@ -33,6 +33,8 @@ export class FrameCapture {
   private canvas: AnyCanvas;
   private ctx: AnyCtx;
   private intervalId: number | null = null;
+  private activeVideo: HTMLVideoElement | null = null;
+  private onFrame: ((imageData: ImageData) => void) | null = null;
 
   constructor(private captureIntervalMs: number = 500) {
     const { canvas, ctx } = createCanvas(640, 480);
@@ -62,6 +64,8 @@ export class FrameCapture {
 
   start(videoElement: HTMLVideoElement, onFrame: (imageData: ImageData) => void): void {
     this.stop();
+    this.activeVideo = videoElement;
+    this.onFrame = onFrame;
 
     this.intervalId = window.setInterval(() => {
       const frame = this.capture(videoElement);
@@ -76,6 +80,21 @@ export class FrameCapture {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+    this.activeVideo = null;
+    this.onFrame = null;
+  }
+
+  setCaptureInterval(intervalMs: number): void {
+    this.captureIntervalMs = intervalMs;
+    if (this.activeVideo && this.onFrame) {
+      this.start(this.activeVideo, this.onFrame);
+    }
+  }
+
+  dispose(): void {
+    this.stop();
+    this.canvas.width = 1;
+    this.canvas.height = 1;
   }
 
   static crop(imageData: ImageData, rect: Rect): ImageData {

@@ -1,4 +1,5 @@
 export type BoardOrientation = 'white' | 'black';
+export type BoardColorTheme = 'green' | 'brown' | 'blue' | 'gray';
 
 type PieceCode =
   | 'P'
@@ -35,6 +36,7 @@ interface RightDragState {
 
 interface InteractiveBoardOptions {
   orientation?: BoardOrientation;
+  theme?: BoardColorTheme;
   onPositionChange?: (fen: string) => void;
 }
 
@@ -53,6 +55,13 @@ const PIECE_GLYPHS: Record<PieceCode, string> = {
   p: '♟',
 };
 
+const BOARD_THEMES: Record<BoardColorTheme, { light: string; dark: string }> = {
+  green: { light: '#e8f0cf', dark: '#769656' },
+  brown: { light: '#f0d9b5', dark: '#b58863' },
+  blue: { light: '#dce9f7', dark: '#5d7fa3' },
+  gray: { light: '#ececec', dark: '#969696' },
+};
+
 export class InteractiveBoard {
   private readonly host: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
@@ -63,6 +72,7 @@ export class InteractiveBoard {
   private board = new Map<string, PieceCode>();
   private fenMeta = 'w - - 0 1';
   private orientation: BoardOrientation;
+  private theme: BoardColorTheme;
 
   private highlights = new Set<string>();
   private userArrows = new Map<string, Arrow>();
@@ -74,6 +84,7 @@ export class InteractiveBoard {
   constructor(host: HTMLElement, options: InteractiveBoardOptions = {}) {
     this.host = host;
     this.orientation = options.orientation ?? 'white';
+    this.theme = options.theme ?? 'green';
     this.onPositionChange = options.onPositionChange;
 
     this.canvas = document.createElement('canvas');
@@ -111,6 +122,11 @@ export class InteractiveBoard {
 
   setOrientation(orientation: BoardOrientation): void {
     this.orientation = orientation;
+    this.render();
+  }
+
+  setTheme(theme: BoardColorTheme): void {
+    this.theme = theme;
     this.render();
   }
 
@@ -285,10 +301,12 @@ export class InteractiveBoard {
 
     this.ctx.clearRect(0, 0, size, size);
 
+    const palette = BOARD_THEMES[this.theme];
+
     for (let row = 0; row < 8; row += 1) {
       for (let col = 0; col < 8; col += 1) {
         const isLight = (row + col) % 2 === 0;
-        this.ctx.fillStyle = isLight ? '#f0d9b5' : '#b58863';
+        this.ctx.fillStyle = isLight ? palette.light : palette.dark;
         this.ctx.fillRect(col * squareSize, row * squareSize, squareSize, squareSize);
       }
     }
