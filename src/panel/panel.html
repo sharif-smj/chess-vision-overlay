@@ -26,6 +26,27 @@
       <div id="engine-lines">Waiting for vision updates...</div>
     </section>
 
+    <section id="performance-panel" class="hidden">
+      <button id="performance-toggle" class="section-toggle" type="button" aria-expanded="true">
+        <span class="section-title">Performance</span>
+        <span id="performance-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div id="performance-content">
+        <div class="perf-row">
+          <span class="perf-label">Frames/sec</span>
+          <span id="perf-fps" class="perf-value">0.0</span>
+        </div>
+        <div class="perf-row">
+          <span class="perf-label">Inference</span>
+          <span id="perf-inference" class="perf-value">0 ms</span>
+        </div>
+        <div class="perf-row">
+          <span class="perf-label">Stockfish</span>
+          <span id="perf-engine" class="perf-value">0 ms</span>
+        </div>
+      </div>
+    </section>
+
     <section id="history-panel">
       <div class="section-title">Move History</div>
       <div id="move-history"></div>
@@ -43,50 +64,59 @@
     <section id="settings-panel" class="hidden">
       <div class="section-title">Settings</div>
 
-      <label class="setting-row" for="setting-scan-frequency">
-        <span>Scan Frequency: <strong id="setting-scan-frequency-value">1.5s</strong></span>
-        <input id="setting-scan-frequency" type="range" min="0.5" max="3" step="0.1" value="1.5">
-      </label>
+      <div class="settings-section">
+        <div class="settings-subtitle">Analysis</div>
+        <label class="setting-row" for="setting-scan-frequency">
+          <span>Scan Frequency: <strong id="setting-scan-frequency-value">1.5s</strong></span>
+          <input id="setting-scan-frequency" type="range" min="0.5" max="3" step="0.1" value="1.5">
+        </label>
 
-      <label class="setting-row" for="setting-engine-depth">
-        <span>Engine Depth: <strong id="setting-engine-depth-value">20</strong></span>
-        <input id="setting-engine-depth" type="range" min="10" max="24" step="1" value="20">
-      </label>
+        <label class="setting-row" for="setting-engine-depth">
+          <span>Engine Depth: <strong id="setting-engine-depth-value">20</strong></span>
+          <input id="setting-engine-depth" type="range" min="10" max="24" step="1" value="20">
+        </label>
+      </div>
 
-      <label class="setting-row" for="setting-board-theme">
-        <span>Board Theme</span>
-        <select id="setting-board-theme">
-          <option value="green">Green</option>
-          <option value="brown">Brown</option>
-          <option value="blue">Blue</option>
-          <option value="gray">Gray</option>
-        </select>
-      </label>
+      <div class="settings-section">
+        <div class="settings-subtitle">Board</div>
+        <label class="setting-row" for="setting-board-theme">
+          <span>Board Theme</span>
+          <select id="setting-board-theme">
+            <option value="green">Green</option>
+            <option value="brown">Brown</option>
+            <option value="blue">Blue</option>
+            <option value="gray">Gray</option>
+          </select>
+        </label>
+      </div>
 
-      <label class="setting-toggle" for="setting-auto-sync">
-        <input id="setting-auto-sync" type="checkbox" checked>
-        <span>Auto-sync</span>
-      </label>
+      <div class="settings-section">
+        <div class="settings-subtitle">Display</div>
+        <label class="setting-toggle" for="setting-auto-sync">
+          <input id="setting-auto-sync" type="checkbox" checked>
+          <span>Auto-sync</span>
+        </label>
 
-      <label class="setting-toggle" for="setting-show-eval-bar">
-        <input id="setting-show-eval-bar" type="checkbox" checked>
-        <span>Show eval bar</span>
-      </label>
+        <label class="setting-toggle" for="setting-show-eval-bar">
+          <input id="setting-show-eval-bar" type="checkbox" checked>
+          <span>Show eval bar</span>
+        </label>
 
-      <label class="setting-toggle" for="setting-show-best-move">
-        <input id="setting-show-best-move" type="checkbox" checked>
-        <span>Show best move arrow</span>
-      </label>
+        <label class="setting-toggle" for="setting-show-best-move">
+          <input id="setting-show-best-move" type="checkbox" checked>
+          <span>Show best move arrow</span>
+        </label>
 
-      <label class="setting-toggle" for="setting-theme">
-        <input id="setting-theme" type="checkbox" checked>
-        <span>Dark theme</span>
-      </label>
+        <label class="setting-toggle" for="setting-theme">
+          <input id="setting-theme" type="checkbox" checked>
+          <span>Dark theme</span>
+        </label>
 
-      <label class="setting-toggle" for="setting-show-performance">
-        <input id="setting-show-performance" type="checkbox">
-        <span>Show performance stats</span>
-      </label>
+        <label class="setting-toggle" for="setting-show-performance">
+          <input id="setting-show-performance" type="checkbox">
+          <span>Show performance stats</span>
+        </label>
+      </div>
     </section>
   </main>
 

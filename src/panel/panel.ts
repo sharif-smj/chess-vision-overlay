@@ -1,16 +1,21 @@
-import type { VisionPipelineUpdate } from '../vision/pipeline';
+import type { VisionPerformanceStats, VisionPipelineUpdate } from '../vision/pipeline';
 import { InteractiveBoard, type BoardOrientation } from '../board/interactive-board';
 import { StockfishEngine, type EvalResult } from '../engine/stockfish-worker';
+import { SettingsController } from './settings';
+import { saveSettings, type ExtensionSettings } from '../shared/settings';
 
 const STORAGE_KEY = 'cvo:lastVisionUpdate';
 const ANALYSIS_DEPTH = 20;
 
 type VisionUpdateMessage = { type: 'cvo:vision-update'; payload: VisionPipelineUpdate };
+type ShortcutCommand = 'pause-sync' | 'flip-board' | 'toggle-eval-bar' | 'toggle-best-move' | 'toggle-settings';
+type ShortcutMessage = { type: 'cvo:shortcut'; command: ShortcutCommand };
 
 class PanelController {
   private readonly boardHost: HTMLElement;
   private readonly moveHistoryElement: HTMLElement;
   private readonly scoreElement: HTMLElement;
+  private readonly evalColumnElement: HTMLElement;
   private readonly evalWhiteElement: HTMLElement;
   private readonly evalBlackElement: HTMLElement;
   private readonly evalMarkerElement: HTMLElement;
@@ -21,24 +26,43 @@ class PanelController {
   private readonly nextUpdateButton: HTMLButtonElement;
   private readonly flipButton: HTMLButtonElement;
   private readonly clearNotesButton: HTMLButtonElement;
+  private readonly openSettingsButton: HTMLButtonElement;
   private readonly acceptGameButton: HTMLButtonElement;
   private readonly dismissGameButton: HTMLButtonElement;
+  private readonly performancePanel: HTMLElement;
+  private readonly performanceToggleButton: HTMLButtonElement;
+  private readonly performanceContent: HTMLElement;
+  private readonly performanceChevron: HTMLElement;
+  private readonly perfFpsElement: HTMLElement;
+  private readonly perfInferenceElement: HTMLElement;
+  private readonly perfEngineElement: HTMLElement;
 
   private readonly board: InteractiveBoard;
   private readonly engine = new StockfishEngine();
+  private readonly settingsController = new SettingsController({
+    onSettingsChanged: (settings) => {
+      this.applySettings(settings);
+    },
+  });
 
   private orientation: BoardOrientation = 'white';
   private syncEnabled = true;
   private autoAdvance = true;
+  private showBestMoveArrow = true;
 
   private lastFen = '8/8/8/8/8/8/8/8 w - - 0 1';
   private pendingSyncUpdate: VisionPipelineUpdate | null = null;
   private analysisGeneration = 0;
+  private lastBestMove: string | null = null;
+  private stockfishEvalMs = 0;
+  private latestVisionPerformance: VisionPerformanceStats | null = null;
+  private performanceExpanded = true;
 
   constructor() {
     this.boardHost = this.getById('board');
     this.moveHistoryElement = this.getById('move-history');
     this.scoreElement = this.getById('eval-score');
+    this.evalColumnElement = this.getById('eval-column');
     this.evalWhiteElement = this.getById('eval-white');
     this.evalBlackElement = this.getById('eval-black');
     this.evalMarkerElement = this.getById('eval-marker');
@@ -49,8 +73,16 @@ class PanelController {
     this.nextUpdateButton = this.getById('next-update') as HTMLButtonElement;
     this.flipButton = this.getById('flip-board') as HTMLButtonElement;
     this.clearNotesButton = this.getById('clear-notes') as HTMLButtonElement;
+    this.openSettingsButton = this.getById('open-settings') as HTMLButtonElement;
     this.acceptGameButton = this.getById('accept-new-game') as HTMLButtonElement;
     this.dismissGameButton = this.getById('dismiss-new-game') as HTMLButtonElement;
+    this.performancePanel = this.getById('performance-panel');
+    this.performanceToggleButton = this.getById('performance-toggle') as HTMLButtonElement;
+    this.performanceContent = this.getById('performance-content');
+    this.performanceChevron = this.getById('performance-chevron');
+    this.perfFpsElement = this.getById('perf-fps');
+    this.perfInferenceElement = this.getById('perf-inference');
+    this.perfEngineElement = this.getById('perf-engine');
 
     this.board = new InteractiveBoard(this.boardHost, {
       orientation: this.orientation,
@@ -65,6 +97,9 @@ class PanelController {
     this.bindControls();
     this.engineLinesElement.textContent = 'Waiting for vision updates...';
 
+    const settings = await this.settingsController.init();
+    this.applySettings(settings);
+
     void this.engine.init().catch((error) => {
       console.error('[Panel] Stockfish init failed', error);
       this.engineLinesElement.textContent = 'Engine failed to initialize.';
@@ -74,32 +109,24 @@ class PanelController {
       if (this.isVisionUpdateMessage(message)) {
         this.onVisionUpdate(message.payload);
       }
+
+      if (this.isShortcutMessage(message)) {
+        this.onShortcut(message.command);
+      }
     });
 
     await this.loadLastUpdate();
+    this.updatePerformanceStats();
   }
 
   private bindControls(): void {
     this.syncToggleButton.addEventListener('click', () => {
-      this.syncEnabled = !this.syncEnabled;
-      this.syncToggleButton.textContent = this.syncEnabled ? 'Pause Sync' : 'Resume Sync';
-
-      if (this.syncEnabled && this.autoAdvance && this.pendingSyncUpdate) {
-        const update = this.pendingSyncUpdate;
-        this.pendingSyncUpdate = null;
-        this.applyVisionUpdate(update);
-      }
+      this.setSyncEnabled(!this.syncEnabled);
     });
 
     this.autoToggleButton.addEventListener('click', () => {
-      this.autoAdvance = !this.autoAdvance;
-      this.autoToggleButton.textContent = this.autoAdvance ? 'Auto-Advance: On' : 'Auto-Advance: Off';
-
-      if (this.autoAdvance && this.syncEnabled && this.pendingSyncUpdate) {
-        const update = this.pendingSyncUpdate;
-        this.pendingSyncUpdate = null;
-        this.applyVisionUpdate(update);
-      }
+      this.setAutoAdvance(!this.autoAdvance);
+      void saveSettings({ autoSync: this.autoAdvance });
     });
 
     this.nextUpdateButton.addEventListener('click', () => {
@@ -112,12 +139,22 @@ class PanelController {
     });
 
     this.flipButton.addEventListener('click', () => {
-      this.orientation = this.orientation === 'white' ? 'black' : 'white';
-      this.board.setOrientation(this.orientation);
+      this.toggleOrientation();
     });
 
     this.clearNotesButton.addEventListener('click', () => {
       this.board.clearAnnotations();
+    });
+
+    this.openSettingsButton.addEventListener('click', () => {
+      this.settingsController.togglePanel();
+    });
+
+    this.performanceToggleButton.addEventListener('click', () => {
+      this.performanceExpanded = !this.performanceExpanded;
+      this.performanceContent.classList.toggle('hidden', !this.performanceExpanded);
+      this.performanceChevron.textContent = this.performanceExpanded ? '▾' : '▸';
+      this.performanceToggleButton.setAttribute('aria-expanded', String(this.performanceExpanded));
     });
 
     this.acceptGameButton.addEventListener('click', () => {
@@ -135,6 +172,19 @@ class PanelController {
     });
   }
 
+  private applySettings(settings: ExtensionSettings): void {
+    this.board.setTheme(settings.boardTheme);
+    this.showBestMoveArrow = settings.showBestMoveArrow;
+    this.board.setEngineBestMove(this.showBestMoveArrow ? this.lastBestMove : null);
+
+    this.evalColumnElement.classList.toggle('hidden', !settings.showEvalBar);
+    this.performancePanel.classList.toggle('hidden', !settings.showPerformanceStats);
+
+    this.setAutoAdvance(settings.autoSync);
+
+    document.body.dataset.theme = settings.uiTheme;
+  }
+
   private async loadLastUpdate(): Promise<void> {
     const stored = await chrome.storage.local.get(STORAGE_KEY);
     const maybeUpdate = stored[STORAGE_KEY] as unknown;
@@ -149,6 +199,9 @@ class PanelController {
   }
 
   private onVisionUpdate(update: VisionPipelineUpdate): void {
+    this.latestVisionPerformance = update.performance;
+    this.updatePerformanceStats();
+
     if (!this.syncEnabled || !this.autoAdvance) {
       this.pendingSyncUpdate = update;
       this.engineLinesElement.textContent = this.syncEnabled
@@ -158,6 +211,66 @@ class PanelController {
     }
 
     this.applyVisionUpdate(update);
+  }
+
+  private onShortcut(command: ShortcutCommand): void {
+    switch (command) {
+      case 'pause-sync':
+        this.setSyncEnabled(!this.syncEnabled);
+        break;
+      case 'flip-board':
+        this.toggleOrientation();
+        break;
+      case 'toggle-eval-bar':
+        void this.toggleBooleanSetting('showEvalBar');
+        break;
+      case 'toggle-best-move':
+        void this.toggleBooleanSetting('showBestMoveArrow');
+        break;
+      case 'toggle-settings':
+        this.settingsController.togglePanel();
+        break;
+      default:
+        break;
+    }
+  }
+
+  private setSyncEnabled(enabled: boolean): void {
+    this.syncEnabled = enabled;
+    this.syncToggleButton.textContent = this.syncEnabled ? 'Pause Sync' : 'Resume Sync';
+
+    if (this.syncEnabled && this.autoAdvance && this.pendingSyncUpdate) {
+      const update = this.pendingSyncUpdate;
+      this.pendingSyncUpdate = null;
+      this.applyVisionUpdate(update);
+    }
+  }
+
+  private setAutoAdvance(enabled: boolean): void {
+    this.autoAdvance = enabled;
+    this.autoToggleButton.textContent = this.autoAdvance ? 'Auto-Advance: On' : 'Auto-Advance: Off';
+
+    if (this.autoAdvance && this.syncEnabled && this.pendingSyncUpdate) {
+      const update = this.pendingSyncUpdate;
+      this.pendingSyncUpdate = null;
+      this.applyVisionUpdate(update);
+    }
+  }
+
+  private toggleOrientation(): void {
+    this.orientation = this.orientation === 'white' ? 'black' : 'white';
+    this.board.setOrientation(this.orientation);
+  }
+
+  private async toggleBooleanSetting<K extends keyof ExtensionSettings>(key: K): Promise<void> {
+    const current = this.settingsController.getSettings();
+    const value = current[key];
+
+    if (typeof value !== 'boolean') {
+      return;
+    }
+
+    await saveSettings({ [key]: !value } as Partial<ExtensionSettings>);
   }
 
   private applyVisionUpdate(update: VisionPipelineUpdate): void {
@@ -185,11 +298,16 @@ class PanelController {
     this.engine.cancelPending();
     this.engineLinesElement.textContent = loadingText;
 
+    const startedAt = performance.now();
+
     try {
       const result = await this.engine.evaluate(fen, ANALYSIS_DEPTH);
       if (generation !== this.analysisGeneration) {
         return;
       }
+
+      this.stockfishEvalMs = performance.now() - startedAt;
+      this.updatePerformanceStats();
       this.renderEval(result);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -197,14 +315,16 @@ class PanelController {
       }
       console.error('[Panel] Analysis failed', error);
       this.engineLinesElement.textContent = 'Engine analysis failed.';
+      this.lastBestMove = null;
       this.board.setEngineBestMove(null);
     }
   }
 
   private renderEval(result: EvalResult): void {
+    this.lastBestMove = result.bestMove;
     this.scoreElement.textContent = this.formatScore(result);
     this.updateEvalBar(result);
-    this.board.setEngineBestMove(result.bestMove);
+    this.board.setEngineBestMove(this.showBestMoveArrow ? result.bestMove : null);
 
     const lines = result.topLines.length > 0
       ? result.topLines
@@ -231,6 +351,15 @@ class PanelController {
     this.evalWhiteElement.style.height = `${whitePercent}%`;
     this.evalBlackElement.style.height = `${blackPercent}%`;
     this.evalMarkerElement.style.top = `${blackPercent}%`;
+  }
+
+  private updatePerformanceStats(): void {
+    const fps = this.latestVisionPerformance?.fps ?? 0;
+    const inferenceMs = this.latestVisionPerformance?.processingMs ?? 0;
+
+    this.perfFpsElement.textContent = fps.toFixed(1);
+    this.perfInferenceElement.textContent = `${Math.round(inferenceMs)} ms`;
+    this.perfEngineElement.textContent = `${Math.round(this.stockfishEvalMs)} ms`;
   }
 
   private formatScore(result: EvalResult): string {
@@ -271,6 +400,25 @@ class PanelController {
     }
     const message = value as { type?: string; payload?: unknown };
     return message.type === 'cvo:vision-update' && this.isVisionUpdate(message.payload);
+  }
+
+  private isShortcutMessage(value: unknown): value is ShortcutMessage {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+
+    const message = value as { type?: string; command?: string };
+    if (message.type !== 'cvo:shortcut') {
+      return false;
+    }
+
+    return (
+      message.command === 'pause-sync' ||
+      message.command === 'flip-board' ||
+      message.command === 'toggle-eval-bar' ||
+      message.command === 'toggle-best-move' ||
+      message.command === 'toggle-settings'
+    );
   }
 
   private isVisionUpdate(value: unknown): value is VisionPipelineUpdate {

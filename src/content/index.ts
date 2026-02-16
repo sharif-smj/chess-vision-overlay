@@ -4,6 +4,9 @@ import { VisionPipeline } from '../vision/pipeline';
 const STORAGE_KEY = 'cvo:lastVisionUpdate';
 const PANEL_ID = 'cvo-status-panel';
 const VIDEO_SCAN_INTERVAL_MS = 1000;
+const YOUTUBE_PLAYER_SELECTOR = '#movie_player, .html5-video-player, .ytp-chrome-controls, .ytp-player-content';
+
+type ShortcutCommand = 'pause-sync' | 'flip-board' | 'toggle-eval-bar' | 'toggle-best-move' | 'toggle-settings';
 
 class ContentController {
   private readonly pipeline = new VisionPipeline();
@@ -15,9 +18,65 @@ class ContentController {
 
   init(): void {
     this.mountStatusPanel();
+    this.bindKeyboardShortcuts();
     this.startVideoScanning();
     window.addEventListener('beforeunload', () => {
       this.teardown();
+    });
+  }
+
+  private bindKeyboardShortcuts(): void {
+    window.addEventListener('keydown', (event) => {
+      if (event.repeat || !this.isYouTubePlayerFocused()) {
+        return;
+      }
+
+      const tagName = (event.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tagName === 'input' || tagName === 'textarea') {
+        return;
+      }
+
+      switch (event.code) {
+        case 'Space':
+          event.preventDefault();
+          this.sendShortcut('pause-sync');
+          break;
+        case 'KeyF':
+          this.sendShortcut('flip-board');
+          break;
+        case 'KeyE':
+          this.sendShortcut('toggle-eval-bar');
+          break;
+        case 'KeyA':
+          this.sendShortcut('toggle-best-move');
+          break;
+        case 'KeyS':
+          this.sendShortcut('toggle-settings');
+          break;
+        default:
+          break;
+      }
+    });
+  }
+
+  private isYouTubePlayerFocused(): boolean {
+    const active = document.activeElement as HTMLElement | null;
+    if (!active) {
+      return false;
+    }
+
+    if (active.tagName.toLowerCase() === 'video') {
+      return true;
+    }
+
+    return Boolean(active.closest(YOUTUBE_PLAYER_SELECTOR));
+  }
+
+  private sendShortcut(command: ShortcutCommand): void {
+    chrome.runtime.sendMessage({ type: 'cvo:shortcut', command } as const, () => {
+      if (chrome.runtime.lastError) {
+        // Panel may be closed.
+      }
     });
   }
 
